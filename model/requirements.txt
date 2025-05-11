@@ -1,0 +1,14 @@
+torch
+torchvision
+torchaudio
+transformers
+datasets[audio]
+accelerate
+soundfile
+librosa
+evaluate
+jiwer
+tensorboard
+gradio
+mlflow
+boto3

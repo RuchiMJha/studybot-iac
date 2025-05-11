@@ -1,0 +1,84 @@
+version: '3.8'
+
+volumes:
+  audio_data:
+
+services:
+  extract-data:
+    container_name: etl_extract_data
+    image: python:3.11
+    user: root
+    volumes:
+      - audio_data:/data
+    working_dir: /data
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+
+        echo "Preparing dataset directory..."
+        rm -rf nptel_dataset
+        mkdir -p nptel_dataset
+        cd nptel_dataset
+
+        echo "Downloading test set parts..."
+        wget https://zenodo.org/record/4596746/files/nptel-test.tar.gz.partaa
+        wget https://zenodo.org/record/4596748/files/nptel-test.tar.gz.partab
+        wget https://zenodo.org/record/4596751/files/nptel-test.tar.gz.partac
+
+        echo "Combining parts..."
+        cat nptel-test.tar.gz.part* > nptel-test.tar.gz
+        rm nptel-test.tar.gz.part*
+
+        echo "Extracting dataset..."
+        tar -xvzf nptel-test.tar.gz
+        rm nptel-test.tar.gz
+
+        echo "Listing extracted files..."
+        ls -lh
+
+  transform-data:
+    container_name: etl_transform_data
+    image: python:3.11
+    volumes:
+      - audio_data:/data
+      - ./pair_files.py:/pair_files.py
+    working_dir: /data/nptel_dataset/nptel-test
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        echo "Running pairing script..."
+        python3 /pair_files.py
+        echo "Paired files:"
+        ls -lh paired
+
+  load-data:
+    container_name: etl_load_data
+    image: rclone/rclone:latest
+    volumes:
+      - audio_data:/data
+      - ~/.config/rclone/rclone.conf:/root/.config/rclone/rclone.conf:ro
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ -z "$RCLONE_CONTAINER" ]; then
+          echo "ERROR: RCLONE_CONTAINER is not set"
+          exit 1
+        fi
+
+        echo "Uploading paired test data..."
+        rclone copy /data/nptel_dataset/nptel-test/paired chi_tacc:$RCLONE_CONTAINER/test \
+          --progress \
+          --transfers=16 \
+          --checkers=8 \
+          --multi-thread-streams=4 \
+          --fast-list
+
+        echo "Upload complete. Verifying..."
+        rclone lsd chi_tacc:$RCLONE_CONTAINER/test
+
+
