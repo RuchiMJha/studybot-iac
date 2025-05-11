@@ -129,7 +129,4 @@ spec:
                   value: "{{inputs.parameters.environment}}"
                 - name: model-version
                   value: "{{inputs.parameters.model-version}}"
-<<<<<<< HEAD
-=======
 
->>>>>>> 10c3e60 (Add container image builder workflow for StudyBot)
